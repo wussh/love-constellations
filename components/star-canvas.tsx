@@ -1,7 +1,8 @@
 'use client';
 
 import { useRef, useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { THEMES } from '@/lib/constants';
 
 interface Star {
   id: string;
@@ -26,7 +27,8 @@ interface StarCanvasProps {
 
 export default function StarCanvas({ stars, onStarClick }: StarCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [hoveredStar, setHoveredStar] = useState<string | null>(null);
+  const [hoveredStar, setHoveredStar] = useState<Star | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
   // Update canvas dimensions
@@ -107,10 +109,11 @@ export default function StarCanvas({ stars, onStarClick }: StarCanvasProps) {
       };
       
       const color = themeColors[star.theme] || '#ffffff';
+      const isHovered = hoveredStar?.id === star.id;
       
       // Draw glow
       ctx.save();
-      ctx.shadowBlur = hoveredStar === star.id ? 30 : 15;
+      ctx.shadowBlur = isHovered ? 30 : 15;
       ctx.shadowColor = color;
       
       // Draw star
@@ -120,7 +123,7 @@ export default function StarCanvas({ stars, onStarClick }: StarCanvasProps) {
       ctx.fill();
       
       // Add sparkle effect for hovered star
-      if (hoveredStar === star.id) {
+      if (isHovered) {
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
         ctx.lineWidth = 1;
         ctx.stroke();
@@ -169,17 +172,67 @@ export default function StarCanvas({ stars, onStarClick }: StarCanvasProps) {
       return distance < 2;
     });
 
-    setHoveredStar(hovered?.id || null);
+    setHoveredStar(hovered || null);
+    
+    if (hovered) {
+      setTooltipPosition({
+        x: e.clientX,
+        y: e.clientY,
+      });
+    }
   };
 
+  const theme = hoveredStar ? THEMES.find(t => t.value === hoveredStar.theme) : null;
+
   return (
-    <canvas
-      ref={canvasRef}
-      onClick={handleCanvasClick}
-      onMouseMove={handleCanvasMove}
-      onMouseLeave={() => setHoveredStar(null)}
-      className="absolute inset-0 w-full h-full cursor-pointer"
-      style={{ background: 'transparent' }}
-    />
+    <>
+      <canvas
+        ref={canvasRef}
+        onClick={handleCanvasClick}
+        onMouseMove={handleCanvasMove}
+        onMouseLeave={() => setHoveredStar(null)}
+        className="absolute inset-0 w-full h-full cursor-pointer"
+        style={{ background: 'transparent' }}
+      />
+      
+      {/* Tooltip */}
+      <AnimatePresence>
+        {hoveredStar && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.15 }}
+            className="fixed z-50 pointer-events-none"
+            style={{
+              left: tooltipPosition.x + 10,
+              top: tooltipPosition.y + 10,
+            }}
+          >
+            <div className="bg-slate-900/95 backdrop-blur-sm border border-slate-700/50 rounded-lg p-3 shadow-xl max-w-xs">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm font-medium text-purple-400">
+                  {theme?.label || hoveredStar.theme}
+                </span>
+                {hoveredStar.hasTwin && (
+                  <span className="text-purple-300 text-xs">✨ Twin</span>
+                )}
+              </div>
+              <p className="text-sm text-white line-clamp-2 mb-2">
+                {hoveredStar.message}
+              </p>
+              <div className="flex items-center gap-3 text-xs text-slate-400">
+                <span>❤️ {hoveredStar.brightness}</span>
+                <span>•</span>
+                <span>{new Date(hoveredStar.createdAt).toLocaleDateString()}</span>
+              </div>
+              <div className="text-xs text-slate-500 mt-2">
+                Click to read more
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

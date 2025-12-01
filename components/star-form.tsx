@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 import { THEMES } from '@/lib/constants';
 
 interface StarFormProps {
@@ -25,17 +26,29 @@ export default function StarForm({ onSubmit, onClose }: StarFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  // Handle keyboard events
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isSubmitting) {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose, isSubmitting]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     
     if (!message || !theme) {
-      setError('Please fill in all required fields');
+      toast.error('Please fill in all required fields');
       return;
     }
     
     if (message.length < 10 || message.length > 500) {
-      setError('Message must be between 10 and 500 characters');
+      toast.error('Message must be between 10 and 500 characters');
       return;
     }
     
@@ -49,6 +62,8 @@ export default function StarForm({ onSubmit, onClose }: StarFormProps) {
         birthMonth: showSecretCode && birthMonth ? birthMonth : undefined,
       });
       
+      toast.success('✨ Your star has been created!');
+      
       // Reset form
       setMessage('');
       setTheme('');
@@ -56,7 +71,9 @@ export default function StarForm({ onSubmit, onClose }: StarFormProps) {
       setBirthMonth('');
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create star');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to create star';
+      setError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -70,6 +87,9 @@ export default function StarForm({ onSubmit, onClose }: StarFormProps) {
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
         onClick={onClose}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="star-form-title"
       >
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
@@ -82,6 +102,7 @@ export default function StarForm({ onSubmit, onClose }: StarFormProps) {
           <button
             onClick={onClose}
             className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"
+            aria-label="Close form"
           >
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -90,7 +111,7 @@ export default function StarForm({ onSubmit, onClose }: StarFormProps) {
 
           {/* Header */}
           <div className="mb-6">
-            <h2 className="text-3xl font-bold text-white mb-2">
+            <h2 id="star-form-title" className="text-3xl font-bold text-white mb-2">
               ✨ Write Your Star
             </h2>
             <p className="text-slate-400">

@@ -1,11 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import StarCanvas from '@/components/star-canvas';
 import StarForm, { StarFormData } from '@/components/star-form';
 import StarModal from '@/components/star-modal';
+import { StarCanvasSkeleton } from '@/components/loading-skeleton';
+import { MeteorShower } from '@/components/meteor-animation';
+import { AmbientParticles, FloatingMotes } from '@/components/particle-effects';
 import { THEMES } from '@/lib/constants';
 
 interface Star {
@@ -28,6 +31,8 @@ export default function ConstellationPage() {
   const [showForm, setShowForm] = useState(false);
   const [selectedStar, setSelectedStar] = useState<Star | null>(null);
   const [themeFilter, setThemeFilter] = useState<string | null>(null);
+  const [newStars, setNewStars] = useState<Array<{ id: string; posX: number; posY: number; theme: string }>>([]);
+  const previousStarIdsRef = useRef<Set<string>>(new Set());
   const queryClient = useQueryClient();
 
   // Fetch stars
@@ -45,6 +50,48 @@ export default function ConstellationPage() {
   });
 
   const stars: Star[] = starsData?.stars || [];
+
+  // Handle star URL parameter for sharing
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const starId = params.get('star');
+      
+      if (starId && stars.length > 0) {
+        const sharedStar = stars.find(s => s.id === starId);
+        if (sharedStar) {
+          setSelectedStar(sharedStar);
+          // Clean up URL
+          window.history.replaceState({}, '', window.location.pathname);
+        }
+      }
+    }
+  }, [stars]);
+
+  // Detect new stars for meteor animation
+  useEffect(() => {
+    if (stars.length > 0) {
+      const currentStarIds = new Set(stars.map(s => s.id));
+      const newStarsList: Array<{ id: string; posX: number; posY: number; theme: string }> = [];
+      
+      stars.forEach(star => {
+        if (!previousStarIdsRef.current.has(star.id)) {
+          newStarsList.push({
+            id: star.id,
+            posX: star.posX,
+            posY: star.posY,
+            theme: star.theme,
+          });
+        }
+      });
+      
+      if (newStarsList.length > 0) {
+        setNewStars(newStarsList);
+      }
+      
+      previousStarIdsRef.current = currentStarIds;
+    }
+  }, [stars]);
 
   // Create star mutation
   const createStarMutation = useMutation({
@@ -113,6 +160,7 @@ export default function ConstellationPage() {
             <button
               onClick={() => setShowForm(true)}
               className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-semibold rounded-lg transition-all shadow-lg shadow-purple-500/20"
+              aria-label="Write a new star message"
             >
               ✨ Write a Star
             </button>
@@ -123,7 +171,7 @@ export default function ConstellationPage() {
       {/* Theme Filter */}
       <div className="relative z-10 border-b border-slate-800/50 bg-slate-950/60 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-3 overflow-x-auto pb-2">
+          <div className="flex items-center gap-3 overflow-x-auto pb-2" role="group" aria-label="Theme filter buttons">
             <button
               onClick={() => setThemeFilter(null)}
               className={`px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
@@ -131,6 +179,8 @@ export default function ConstellationPage() {
                   ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
                   : 'bg-slate-800/50 text-slate-300 hover:bg-slate-700/50'
               }`}
+              aria-label="Show all themes"
+              aria-pressed={themeFilter === null}
             >
               🌌 All Themes
             </button>
@@ -144,6 +194,8 @@ export default function ConstellationPage() {
                     ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
                     : 'bg-slate-800/50 text-slate-300 hover:bg-slate-700/50'
                 }`}
+                aria-label={`Filter by ${theme.label}`}
+                aria-pressed={themeFilter === theme.value}
               >
                 {theme.label}
               </button>
@@ -155,32 +207,20 @@ export default function ConstellationPage() {
       {/* Star Field */}
       <div className="relative flex-1" style={{ height: 'calc(100vh - 180px)' }}>
         {isLoading ? (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-white text-lg">Loading constellation...</div>
-          </div>
+          <StarCanvasSkeleton />
         ) : (
           <>
-            {/* Ambient stars background */}
-            <div className="absolute inset-0 overflow-hidden">
-              {Array.from({ length: 50 }).map((_, i) => (
-                <motion.div
-                  key={i}
-                  className="absolute w-1 h-1 bg-white rounded-full opacity-30"
-                  style={{
-                    left: `${Math.random() * 100}%`,
-                    top: `${Math.random() * 100}%`,
-                  }}
-                  animate={{
-                    opacity: [0.1, 0.5, 0.1],
-                  }}
-                  transition={{
-                    duration: 2 + Math.random() * 3,
-                    repeat: Infinity,
-                    delay: Math.random() * 2,
-                  }}
-                />
-              ))}
-            </div>
+            {/* Ambient particle effects */}
+            <AmbientParticles />
+            <FloatingMotes />
+
+            {/* Meteor animations for new stars */}
+            <MeteorShower
+              newStars={newStars}
+              onComplete={(starId) => {
+                setNewStars(prev => prev.filter(s => s.id !== starId));
+              }}
+            />
 
             {/* Interactive star canvas */}
             <StarCanvas
