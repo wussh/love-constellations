@@ -1,0 +1,68 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Theme {
+  CRUSH
+  FIRST_LOVE
+  UNSENT_APOLOGY
+  LONG_DISTANCE
+  SECRET_ADMIRER
+  MOVING_ON
+  WHAT_IF
+  GRATITUDE
+}
+
+model Star {
+  id         String   @id @default(uuid())
+  message    String   @db.Text
+  theme      Theme
+  codeHash   String?  @map("code_hash") @db.Text // Hashed initials + birth month
+  posX       Float    @map("pos_x")
+  posY       Float    @map("pos_y")
+  brightness Int      @default(0) // Like count
+  createdAt  DateTime @default(now()) @map("created_at")
+  ipHash     String?  @map("ip_hash") @db.Text // For rate limiting
+
+  reactions     Reaction[]
+  twinLinksA    TwinLink[] @relation("StarA")
+  twinLinksB    TwinLink[] @relation("StarB")
+
+  @@index([theme])
+  @@index([codeHash])
+  @@index([createdAt])
+  @@map("stars")
+}
+
+model Reaction {
+  id        String   @id @default(uuid())
+  starId    String   @map("star_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  ipHash    String?  @map("ip_hash") @db.Text // For duplicate prevention
+
+  star Star @relation(fields: [starId], references: [id], onDelete: Cascade)
+
+  @@index([starId])
+  @@map("reactions")
+}
+
+model TwinLink {
+  id        String   @id @default(uuid())
+  starAId   String   @map("star_a_id")
+  starBId   String   @map("star_b_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  starA Star @relation("StarA", fields: [starAId], references: [id], onDelete: Cascade)
+  starB Star @relation("StarB", fields: [starBId], references: [id], onDelete: Cascade)
+
+  @@unique([starAId, starBId])
+  @@map("twin_links")
+}
