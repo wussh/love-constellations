@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useCanvasGestures } from '@/hooks/use-gestures';
 import { THEMES } from '@/lib/constants';
 
 interface Star {
@@ -27,9 +28,29 @@ interface StarCanvasProps {
 
 export default function StarCanvas({ stars, onStarClick }: StarCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredStar, setHoveredStar] = useState<Star | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  
+  // Mobile gesture support
+  const { handlers, transform } = useCanvasGestures((canvasX, canvasY) => {
+    // Convert canvas coordinates to percentage
+    const x = (canvasX / dimensions.width) * 100;
+    const y = (canvasY / dimensions.height) * 100;
+    
+    // Find clicked star
+    const clickedStar = stars.find((star) => {
+      const distance = Math.sqrt(
+        Math.pow(star.posX - x, 2) + Math.pow(star.posY - y, 2)
+      );
+      return distance < 2;
+    });
+    
+    if (clickedStar) {
+      onStarClick(clickedStar);
+    }
+  });
 
   // Update canvas dimensions
   useEffect(() => {
@@ -65,7 +86,41 @@ export default function StarCanvas({ stars, onStarClick }: StarCanvasProps) {
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw twin links first (behind stars)
+    // Draw constellation lines (connecting nearby stars)
+    const maxDistance = 15; // Maximum distance percentage to draw connections
+    const drawnConnections = new Set<string>();
+    
+    stars.forEach((star, index) => {
+      stars.slice(index + 1).forEach((otherStar) => {
+        const dx = star.posX - otherStar.posX;
+        const dy = star.posY - otherStar.posY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < maxDistance) {
+          const connectionKey = `${Math.min(index, index + 1)}-${Math.max(index, index + 1)}`;
+          if (!drawnConnections.has(connectionKey)) {
+            drawnConnections.add(connectionKey);
+            
+            const x1 = (star.posX / 100) * canvas.width;
+            const y1 = (star.posY / 100) * canvas.height;
+            const x2 = (otherStar.posX / 100) * canvas.width;
+            const y2 = (otherStar.posY / 100) * canvas.height;
+            
+            // Draw subtle connecting line
+            ctx.save();
+            ctx.strokeStyle = `rgba(148, 163, 184, ${0.1 * (1 - distance / maxDistance)})`; // Fade based on distance
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+      });
+    });
+
+    // Draw twin links (behind stars but above constellation lines)
     stars.forEach((star) => {
       if (star.hasTwin && star.twinLink) {
         const x1 = (star.posX / 100) * canvas.width;
@@ -185,14 +240,24 @@ export default function StarCanvas({ stars, onStarClick }: StarCanvasProps) {
   const theme = hoveredStar ? THEMES.find(t => t.value === hoveredStar.theme) : null;
 
   return (
-    <>
+    <div 
+      ref={containerRef}
+      className="absolute inset-0"
+      {...handlers}
+      style={{ touchAction: 'none' }}
+    >
       <canvas
         ref={canvasRef}
         onClick={handleCanvasClick}
         onMouseMove={handleCanvasMove}
         onMouseLeave={() => setHoveredStar(null)}
         className="absolute inset-0 w-full h-full cursor-pointer"
-        style={{ background: 'transparent' }}
+        style={{ 
+          background: 'transparent',
+          transform: `translate(${transform.translateX}px, ${transform.translateY}px) scale(${transform.scale})`,
+          transformOrigin: 'center center',
+          transition: 'transform 0.1s ease-out',
+        }}
       />
       
       {/* Tooltip */}
@@ -233,6 +298,6 @@ export default function StarCanvas({ stars, onStarClick }: StarCanvasProps) {
           </motion.div>
         )}
       </AnimatePresence>
-    </>
+    </div>
   );
 }

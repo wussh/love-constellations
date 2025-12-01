@@ -9,6 +9,7 @@ import StarModal from '@/components/star-modal';
 import { StarCanvasSkeleton } from '@/components/loading-skeleton';
 import { MeteorShower } from '@/components/meteor-animation';
 import { AmbientParticles, FloatingMotes } from '@/components/particle-effects';
+import { LiveVisitorCount } from '@/components/live-visitor-count';
 import { THEMES } from '@/lib/constants';
 
 interface Star {
@@ -238,6 +239,9 @@ export default function ConstellationPage() {
             <div className="absolute bottom-4 left-4 px-4 py-2 bg-slate-950/80 backdrop-blur-sm border border-slate-700/50 rounded-lg text-slate-300 text-sm">
               ✨ {stars.length} stars in the sky
             </div>
+
+            {/* Live visitor count */}
+            <LiveVisitorCount />
           </>
         )}
       </div>
